@@ -1,0 +1,291 @@
+@using System.Linq;
+@using System.Xml.Linq;
+@using umbraco.BusinessLogic;
+@using umbraco.MacroEngines;
+@inherits umbraco.MacroEngines.DynamicNode
+@inherits umbraco.MacroEngines.DynamicNodeContext
+@using uComponents.Core
+@using uComponents.Core.uQueryExtensions
+@using umbraco.cms.businesslogic.datatype
+@using System.Xml.XPath
+@using DWTBlog;
+
+@{
+
+  DynamicNodeList nodes;
+  IEnumerable<umbraco.presentation.nodeFactory.Node> nodesList;
+  // configuration
+  var itemsPerPage = String.IsNullOrEmpty(Parameter.ItemsPerPage) ? 3 : int.Parse(Parameter.ItemsPerPage); 
+  var previousLabel = String.IsNullOrEmpty(Parameter.PreviousLabel) ? "Prev" : Parameter.PreviousLabel;
+  var nextLabel = String.IsNullOrEmpty(Parameter.NextLabel) ? "Next" : Parameter.NextLabel;
+
+  int currentPage = 1;
+  if (!int.TryParse(HttpContext.Current.Request.QueryString["Page"], out currentPage)) {
+    currentPage = 1;
+  }
+  
+  // paging calculations
+  currentPage--;
+ 
+
+  @*// XPATH properties to get prevalues of Categories*@
+  
+  @* 
+  XPathNodeIterator myValues = umbraco.library.GetPreValues(12080);
+  myValues.MoveNext();
+  XPathNodeIterator preValueIterator = myValues.Current.SelectChildren("preValue","");
+  while(preValueIterator.MoveNext()) {
+   @preValueIterator.Current.Value
+ }
+  *@
+  
+  @*AUTHORS*@
+  if(!String.IsNullOrEmpty(Request.QueryString["author"])){
+      nodes= @Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").Where("creatorName == @0", Request.QueryString["author"]).OrderBy("CreateDate desc");
+      @PostListings(@Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").Where("creatorName == @0", Request.QueryString["author"]).OrderBy("CreateDate desc").Skip(currentPage*itemsPerPage).Take(itemsPerPage));                                                     
+   }
+  @*CATEGORIES*@
+  else if(!String.IsNullOrEmpty(Request.QueryString["category"])){
+   nodes= @DWTBlog.ListOfPosts.GetNodes(@Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").OrderBy("CreateDate desc"), Request.QueryString["category"]);
+   @PostListings(@DWTBlog.ListOfPosts.GetNodes(@Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").OrderBy("CreateDate desc"), Request.QueryString["category"]).Skip(currentPage*itemsPerPage).Take(itemsPerPage));                                        
+ }
+  @*DATES*@
+  else if(!String.IsNullOrEmpty(Request.QueryString["archive"])){
+    nodes= @DWTBlog.ListOfPosts.GetNodesByMonth(@Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").OrderBy("CreateDate desc"), Request.QueryString["archive"]);
+    @PostListings(@DWTBlog.ListOfPosts.GetNodesByMonth(@Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").OrderBy("CreateDate desc"), Request.QueryString["archive"]).Skip(currentPage*itemsPerPage).Take(itemsPerPage));
+  }
+   @*Tags*@
+  else if(!String.IsNullOrEmpty(Request.QueryString["tag"])){
+    nodes= @DWTBlog.ListOfPosts.GetNodesByTag(@Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").OrderBy("CreateDate desc"), Request.QueryString["tag"]);
+    @PostListings(@DWTBlog.ListOfPosts.GetNodesByTag(@Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").OrderBy("CreateDate desc"), Request.QueryString["tag"]).Skip(currentPage*itemsPerPage).Take(itemsPerPage));
+  }
+  @*NOTHING*@
+  else{
+     nodesList= uQuery.GetRootNode().GetDescendantNodes().Where(x => x.NodeTypeAlias == "ScienceResearchUpdatesPost").OrderByDescending(x => x.CreateDate);
+
+     nodes= @Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").OrderBy("CreateDate desc");
+     @* @PostListings(@Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").OrderBy("CreateDate desc").Skip(currentPage*itemsPerPage).Take(itemsPerPage));  *@
+     
+     int skipThisMany = Convert.ToInt16(currentPage*itemsPerPage);
+     int loadThisMany = Convert.ToInt16(itemsPerPage);
+
+     @PostListings2(nodesList.Skip(skipThisMany).Take(loadThisMany));
+  }
+  
+  @*DMNS - ELSE IF HERE?  Would this need to be per section?*@
+
+  var numberOfItems = nodes.Items.Count();
+  var numberOfPages = numberOfItems % itemsPerPage == 0 ? Math.Ceiling((decimal)(numberOfItems / itemsPerPage)) : Math.Ceiling((decimal)(numberOfItems / itemsPerPage))+1; 
+
+  @*
+  <p>
+    Total Items: @numberOfItems <br />
+    Items per Page: @itemsPerPage<br />
+    Pages: @numberOfPages;<br />
+    Current Page: @(currentPage)
+  </p>
+  *@
+  
+        // pagination
+        @PaginationHelper(nodes, itemsPerPage)
+  
+
+@*
+  <div class="pagingPages">
+    @{
+  // Google style paging links
+    if(currentPage > 0) {
+      <a href="?page=@(currentPage)">&laquo; @previousLabel</a>
+    } else {
+      <span class="pagingDisabled">&laquo; @previousLabel</span>
+    }
+    
+    var Pages = Enumerable.Range(1, (int)numberOfPages);
+    foreach(var number in Pages) {
+      if(number-1 != currentPage) {
+        <a href="?page=@number">@number</a>
+      } else {
+        <span class="dwtPagingCurrent">@number</span>
+      }
+    }
+    if(currentPage < Pages.Count()-1) {
+      <a href="?page=@(currentPage+2)">@nextLabel &raquo;</a>
+    }else {
+      <span class="pagingDisabled">@nextLabel &raquo;</span>
+    }
+  }
+  </div>*@
+}
+
+@*Helper method for redirection*@
+
+@helper PostListings2(IEnumerable<umbraco.presentation.nodeFactory.Node> list)
+{ 
+
+ var baseNode = @Model.AncestorOrSelf("DWTBlogLanding");
+ <ul class="dwtPostList">
+ @foreach(var nodeItem in @list){
+  <li>
+    <h3>
+       <a href="http://website.test.dmns.org/@(baseNode.Url)Post/?nid=@(nodeItem.Id)">@nodeItem.Name</a>
+    </h3>
+  <div class="dwtPosted">Posted @nodeItem.CreateDate by @nodeItem.CreatorName</div>
+  @Html.Raw(@nodeItem.GetProperty("landingPageContent").Value)  
+   @*@Html.Raw(@nodeItem.GetProperty("bodyText").Value)*@
+     <div class="dwtBtnHolder">
+       <a href="http://website.test.dmns.org/@(baseNode.Url)Post/?nid=@(nodeItem.Id)" class="buyNowBtn">Read More</a>
+     </div>
+                                
+    @if(@nodeItem.HasProperty("dwtBlogCategories")){                                       
+       <div class="dwtBlogCatTagContainer">
+       <div class="dwtPostListCategories">
+       <span> Categories: </span> 
+      <ul class="dwtPostListCategoriesList">   
+                                              
+      @{var categories = @nodeItem.GetProperty("dwtBlogCategories").Value.Split(",".ToCharArray());}
+        @foreach(var c in categories){
+          <li><a href="@baseNode.Url?category=@c">@c</a></li>                      
+         }
+         </div>                       
+        </div> 
+      }         
+  </li>
+ }
+ </ul>
+} 
+
+@helper PostListings(DynamicNodeList list)
+{ 
+ var baseNode = @Model.AncestorOrSelf("DWTBlogLanding");
+ <ul class="dwtPostList">
+ @foreach(DynamicNode nodeItem in @list){
+  <li>
+    <h3>
+       <a href="http://website.test.dmns.org/@(baseNode.Url)Post/?nid=@(nodeItem.Id)">@nodeItem.Name</a>
+    </h3>
+  <div class="dwtPosted">Posted @nodeItem.CreateDate by @nodeItem.CreatorName</div>
+  @Html.Raw(@nodeItem.GetProperty("landingPageContent").Value)  
+   @*@Html.Raw(@nodeItem.GetProperty("bodyText").Value)*@
+     <div class="dwtBtnHolder">
+       <a href="http://website.test.dmns.org/@(baseNode.Url)Post/?nid=@(nodeItem.Id)" class="buyNowBtn">Read More</a>
+     </div>
+                                
+    @if(@nodeItem.HasValue("dwtBlogCategories")){                                       
+       <div class="dwtBlogCatTagContainer">
+       <div class="dwtPostListCategories">
+       <span> Categories: </span> 
+      <ul class="dwtPostListCategoriesList">   
+                                              
+      @{var categories = @nodeItem.GetProperty("dwtBlogCategories").Value.Split(",".ToCharArray());}
+        @foreach(var c in categories){
+          <li><a href="@baseNode.Url?category=@c">@c</a></li>                      
+         }
+         </div>                       
+        </div> 
+      }         
+  </li>
+ }
+ </ul>
+} 
+
+@helper CategoryList(){
+                
+ }
+
+
+
+@*WILL GET TO THIS LATER*@
+
+@helper PaginationHelper(DynamicNodeList nodes, int itemsPerPage){
+  @* var pagesToList = @Model.NodeById(1089).Descendants("ScienceResearchUpdatesPost").OrderBy("CreateDate desc"); *@
+  var pagesToList = nodes;
+  var previousLabel = String.IsNullOrEmpty(Parameter.PreviousLabel) ? "Previous" : Parameter.PreviousLabel;
+  var nextLabel = String.IsNullOrEmpty(Parameter.NextLabel) ? "Next" : Parameter.NextLabel;
+
+  // paging calculations
+  var numberOfItems = pagesToList.Items.Count();
+  int currentPage = 1;
+  if (!int.TryParse(HttpContext.Current.Request.QueryString["Page"], out currentPage)) {
+    currentPage = 1;
+  }
+  @*DMNS - ELSE IF HERE?  Would this need to be per section?*@
+  
+  currentPage--;
+  var numberOfPages = numberOfItems % itemsPerPage == 0 ? Math.Ceiling((decimal)(numberOfItems / itemsPerPage)) : Math.Ceiling((decimal)(numberOfItems / itemsPerPage))+1; 
+           
+<div class="pagingPages">
+    @{
+    // Google style paging links
+    
+    var previousQueryString = "";
+    
+    if(!String.IsNullOrEmpty(Request.QueryString["author"]))
+    {
+       previousQueryString = "?author=" + Request.QueryString["author"];
+    }
+    else if(!String.IsNullOrEmpty(Request.QueryString["category"]))
+    {
+       previousQueryString = "?category=" + Request.QueryString["category"];
+    }
+    else if(!String.IsNullOrEmpty(Request.QueryString["archive"]))
+    {
+       previousQueryString = "?archive=" + Request.QueryString["archive"];
+    }
+    else if(!String.IsNullOrEmpty(Request.QueryString["tag"]))
+    {
+       previousQueryString = "?tag=" + Request.QueryString["tag"];
+    }
+      
+    var pageString = "?page=";
+    if (!String.IsNullOrEmpty(previousQueryString))  
+    {
+       pageString = "&page=";
+    }
+    
+    if(currentPage > 0) {
+      <a href="@(previousQueryString)@(pageString)@(currentPage)">&laquo; @previousLabel</a>
+    } else {
+      <span class="pagingDisabled">&laquo; @previousLabel</span>
+    }
+    
+    var Pages = Enumerable.Range(1, (int)numberOfPages);
+    foreach(var number in Pages) {
+      if(number-1 != currentPage) {
+        <a href="@(previousQueryString)@(pageString)@number">@number</a>
+      } else {
+        <span class="dwtPagingCurrent">@number</span>
+      }
+    }
+    if(currentPage < Pages.Count()-1) {
+      <a href="@(previousQueryString)@(pageString)@(currentPage+2)">@nextLabel &raquo;</a>
+    }else {
+      <span class="pagingDisabled">@nextLabel &raquo;</span>
+    }
+  }
+  </div>
+}
+
+
+@functions{
+  public static IEnumerable<umbraco.presentation.nodeFactory.Node> GetListOfNodes(IEnumerable<umbraco.presentation.nodeFactory.Node> nodes, string category)
+    {
+        var myNodeList = new List<umbraco.presentation.nodeFactory.Node>();
+        
+        foreach (var node in nodes)
+        {
+            var myCategories = node.GetProperty("dwtBlogCategories").Value;
+
+            if (!String.IsNullOrWhiteSpace(myCategories))
+            {
+                var myCategoryList = new List<string>(myCategories.Split(','));
+
+                if (myCategoryList.Any(x => x == category))
+                {
+                    myNodeList.Add(node);
+                }
+            }
+        }
+
+        return myNodeList;
+    }
+}
